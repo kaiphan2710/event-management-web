@@ -1,0 +1,379 @@
+# 3004ICT Laravel Event Management Project Rules
+
+## Project Overview
+This is a Laravel-based Event Management System with two user types (Organisers and Attendees), event CRUD operations, booking system, and advanced features. The project constitutes 90% of final grade and requires comprehensive testing and documentation.
+
+## Core Technical Requirements
+
+### Framework & Database
+- Use Laravel framework exclusively
+- Use SQLite as the database
+- Use Laravel's migrations for ALL database table creation
+- Use Laravel's ORM/Eloquent for database operations (except ONE required raw SQL query)
+- Use Laravel's seeders for test data (Min: 2 Organisers, 10 Attendees, 15 Events)
+
+### Required Laravel Components
+- Migrations, Seeders, Models, ORM/Eloquent
+- Routes, Controllers, Validators
+- Views/Blade templates
+- Authentication system
+- Form Request validation
+- Policies for authorization
+
+## User Types & Authentication
+
+### User Management
+- Two user types: Organiser and Attendee
+- Organiser: seeded via database seeder (name, email, password)
+- Attendee: register via form (name, email, password, implicit type)
+- All users login with email/password
+- Display user name and type on every authenticated page
+- Implement logout functionality
+
+### Authorization Rules
+- Organisers can only edit/delete their own events
+- Attendees can only book events (not edit/delete)
+- Users can only see appropriate action buttons based on their role
+- Implement proper Laravel Policies for authorization
+
+## Database Design Principles
+
+### Core Tables Required
+- users (with user_type field: 'organiser' or 'attendee')
+- events (title, description, date, time, location, capacity, organiser_id)
+- bookings (user_id, event_id, created_at, updated_at)
+- Additional tables for chosen advanced feature
+
+### Core Tables Required
+- users (with user_type field: 'organiser' or 'attendee')
+- events (title, description, date, time, location, capacity, organiser_id)
+- bookings (user_id, event_id, created_at, updated_at)
+- **event_waitlists (user_id, event_id, joined_at) - for waiting list feature**
+
+### Relationships
+- User hasMany Events (as organiser)
+- User hasMany Bookings (as attendee)
+- **User hasMany EventWaitlists (as attendee)**
+- Event belongsTo User (organiser)
+- Event hasMany Bookings
+- **Event hasMany EventWaitlists**
+- Booking belongsTo User and Event
+- **EventWaitlist belongsTo User and Event**
+
+## Validation Standards
+
+### Server-Side Validation (Required for ALL inputs)
+- Event Title: required, max 100 characters
+- Event Description: optional, textarea
+- Event Date & Time: required, must be future date
+- Event Location: required, max 255 characters
+- Event Capacity: required, integer, min 1, max 1000
+- User registration: name, email (unique), password
+- Privacy Policy consent: required checkbox (server-side validated)
+
+### Manual Validation Requirements
+- Event capacity check MUST be implemented manually in Controller
+- Query current bookings count vs capacity before allowing booking
+- Cannot use simple Laravel validation rules for capacity check
+- Provide clear error messages for validation failures
+
+## UI/UX Requirements
+
+### Public Pages
+- Home page with paginated event list (8 events per page)
+- Event details page accessible to all users
+- No action buttons visible to guests
+
+### Authenticated Features
+- Dashboard for Organisers with event management
+- "My Bookings" page for Attendees
+- Conditional UI: show appropriate buttons based on user type and permissions
+- Clear user feedback for all actions (success/error messages)
+
+### UI Standards
+- Clean, consistent layout across all pages
+- Professional styling (beyond default browser styles)
+- Responsive design (doesn't break on smaller windows)
+- Intuitive navigation and user flow
+- Clear visual hierarchy and readable fonts
+
+## Business Logic Rules
+
+### Event Management
+- Only upcoming events shown on public listing
+- Event capacity cannot be exceeded
+- Users cannot book same event twice
+- Events with bookings cannot be deleted
+- Only event creators can edit/delete their events
+
+### Booking System
+- Attendees can only book upcoming, available events
+- Show available spots (Capacity - Current Bookings)
+- Prevent double booking by same user
+- Manual capacity validation in controller
+
+## Advanced Feature Implementation: EVENT WAITING LIST (Selected)
+
+### Core Functional Requirements (MUST ACHIEVE)
+#### Attendee Perspective:
+- Logged-in attendees can join waitlist for full events
+- Clear UI indication when event is full and waitlist option available
+- Attendees can view all waitlists they're currently on
+- Attendees can leave/remove themselves from waitlists
+- "Join Waitlist" button appears only when event is full and user eligible
+
+#### Organiser Perspective:
+- Organisers can view complete waitlist for any of their events
+- Display waitlist in chronological order (first-come-first-served)
+- Show attendee details for waitlisted users
+- Clear indication of waitlist position/order
+
+#### Data Persistence Requirements:
+- Reliable storage of user-waitlist-event relationships
+- Track waitlist position/timestamp for proper ordering
+- Conditional UI based on event status and user eligibility
+
+### Database Design for Waiting List
+```php
+// Required new table: event_waitlists
+Schema::create('event_waitlists', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('user_id')->constrained()->onDelete('cascade');
+    $table->foreignId('event_id')->constrained()->onDelete('cascade');
+    $table->timestamp('joined_at');
+    $table->timestamps();
+    
+    // Prevent duplicate waitlist entries
+    $table->unique(['user_id', 'event_id']);
+});
+```
+
+### Excellence Markers Implementation
+
+#### 1. Mandatory Excellence Marker: AUTOMATED NOTIFICATION
+**Requirements:**
+- When booking is cancelled for full event, automatically email first person on waitlist
+- Use Mail::fake() for testing environment
+- Demonstrate with log mailer during development
+- Email must be triggered automatically, not manually
+
+**Implementation approach:**
+- Use Laravel Event/Listener system
+- Listen for BookingCancelled event
+- Check if event was full before cancellation
+- Email first waitlisted user if spot opens up
+- Move user from waitlist to booking automatically OR notify them to book
+
+#### 2. Student-Designed Excellence Marker Ideas:
+Choose ONE and justify against excellence criteria:
+
+**Option A: Smart Waitlist Management**
+- Automatically remove expired waitlist entries (users who don't respond to notification within 24 hours)
+- Demonstrates: Automates Process + Complex Business Logic
+
+**Option B: Waitlist Analytics Dashboard**
+- Show organisers waitlist statistics, trends, popular events
+- Demonstrates: Improves User Experience + Advanced Technical Skill
+
+**Option C: Bulk Waitlist Notifications**
+- Allow organisers to message entire waitlist (e.g., event time change)
+- Demonstrates: Improves User Experience + Automates Process
+
+**Option D: Waitlist Priority System**
+- VIP users or early registrants get waitlist priority
+- Demonstrates: Complex Business Logic + Improves User Experience
+
+## Testing Requirements (CRITICAL)
+
+### Required Test Files & Methods (INCLUDING WAITLIST)
+```php
+// tests/Feature/GuestAccessTest.php
+test_a_guest_can_view_the_paginated_list_of_upcoming_events()
+test_a_guest_can_view_a_specific_event_details_page()
+test_a_guest_is_redirected_when_accessing_protected_routes()
+test_a_guest_cannot_see_action_buttons_on_event_details_page()
+
+// tests/Feature/AttendeeActionsTest.php
+test_a_user_can_successfully_register_as_an_attendee()
+test_a_registered_attendee_can_log_in_and_log_out()
+test_a_logged_in_attendee_can_book_an_available_upcoming_event()
+test_after_booking_an_attendee_can_see_the_event_on_their_bookings_page()
+test_an_attendee_cannot_book_the_same_event_more_than_once()
+test_an_attendee_cannot_book_a_full_event()
+test_an_attendee_cannot_see_edit_or_delete_buttons_on_any_event_page()
+
+// tests/Feature/OrganiserActionsTest.php
+test_an_organiser_can_log_in_and_view_their_specific_dashboard()
+test_an_organiser_can_successfully_create_an_event_with_valid_data()
+test_an_organiser_receives_validation_errors_for_invalid_event_data()
+test_an_organiser_can_successfully_update_an_event_they_own()
+test_an_organiser_cannot_update_an_event_created_by_another_organiser()
+test_an_organiser_can_delete_an_event_they_own_that_has_no_bookings()
+test_an_organiser_cannot_delete_an_event_that_has_active_bookings()
+
+// tests/Feature/Auth/RegistrationTest.php (update existing)
+test_new_users_can_register()
+test_user_cannot_register_without_agreeing_to_privacy_policy()
+
+// tests/Feature/WaitlistTest.php (NEW - for advanced feature)
+test_attendee_can_join_waitlist_for_full_event()
+test_attendee_cannot_join_waitlist_for_available_event()
+test_attendee_cannot_join_waitlist_twice_for_same_event()
+test_attendee_can_leave_waitlist()
+test_attendee_can_view_their_waitlists()
+test_organiser_can_view_waitlist_for_their_events()
+test_email_sent_to_first_waitlisted_user_when_booking_cancelled()
+test_user_cannot_join_waitlist_if_already_booked()
+// Add tests for your student-designed excellence marker
+```
+
+### Test Requirements
+- ALL tests must pass when running `php artisan test`
+- Use Laravel's testing features (factories, database transactions)
+- Test both positive and negative scenarios
+- Include tests for chosen advanced feature
+
+## Code Quality Standards
+
+### Professional Commenting
+- Every Controller and Model method MUST have comment block
+- Include @param and @return documentation
+- Explain WHY, not just WHAT
+- Focus on business logic and complex operations
+- Comments are for maintainability, not demonstration script
+
+### Code Organization (Updated for Waiting List)
+```
+app/
+├── Http/Controllers/
+│   ├── AuthController.php
+│   ├── EventController.php
+│   ├── BookingController.php
+│   ├── WaitlistController.php          // NEW
+│   └── DashboardController.php
+├── Models/
+│   ├── User.php
+│   ├── Event.php
+│   ├── Booking.php
+│   └── EventWaitlist.php               // NEW
+├── Policies/
+│   ├── EventPolicy.php
+│   └── WaitlistPolicy.php              // NEW  
+├── Http/Requests/
+│   ├── EventRequest.php
+│   ├── BookingRequest.php
+│   └── WaitlistRequest.php             // NEW
+├── Events/                             // NEW
+│   └── BookingCancelled.php
+├── Listeners/                          // NEW
+│   └── NotifyWaitlistedUsers.php
+├── Mail/                               // NEW
+│   └── WaitlistSpotAvailable.php
+└── Jobs/                               // NEW (if implementing queue)
+    └── ProcessWaitlistNotification.php
+```
+
+### Naming Conventions
+- Controllers: PascalCase with "Controller" suffix
+- Models: PascalCase, singular
+- Methods: camelCase, descriptive names
+- Routes: kebab-case URLs
+- Database tables: snake_case, plural
+
+## Required Raw SQL Implementation
+- Organiser dashboard report MUST use raw SQL query
+- Use DB::select() for the events-bookings join with aggregation
+- Query should calculate: total capacity, current bookings, remaining spots
+- This is the ONLY required raw SQL - everything else uses Eloquent
+
+## Privacy Policy Integration
+- Required checkbox in registration form
+- Server-side validation for privacy policy consent
+- Use AI-generated privacy policy content
+- Must outline: data collected, usage, storage, user rights
+
+## AI Usage Policy
+- AI can generate: test suite code, privacy policy content
+- AI assistance for debugging/concepts: document in references.txt
+- Main application logic must be your own work
+- Must be able to explain ALL code during demonstration
+
+## Demonstration Preparation
+- Be prepared to navigate codebase confidently
+- Explain architecture, design choices, and business logic
+- Run automated tests successfully
+- Demonstrate all features working correctly
+- Answer detailed questions about implementation
+- Cannot rely on comments as explanation script
+
+## Excellence Criteria for Custom Features
+Design custom features that demonstrate:
+- **Improves User Experience**: Makes system easier, faster, more informative
+- **Automates a Process**: Intelligently automates manual tasks
+- **Complex Business Logic**: Handles non-trivial rules and edge cases  
+- **Advanced Technical Skill**: Uses advanced Laravel features (Events, Queues, AJAX, etc.)
+
+## File Structure Expectations
+```
+project-root/
+├── app/
+├── database/
+│   ├── migrations/
+│   ├── seeders/
+│   └── database.sqlite
+├── tests/
+│   └── Feature/
+├── resources/
+│   └── views/
+├── routes/
+├── documentation.pdf
+├── self-assessment.xlsx
+└── references.txt
+```
+
+## Waiting List Implementation Checklist
+
+### Phase 1: Database & Models
+- [ ] Create `event_waitlists` migration
+- [ ] Create `EventWaitlist` model with relationships
+- [ ] Update `User` and `Event` models for waitlist relationships
+- [ ] Update seeders to include waitlist test data
+
+### Phase 2: Core Waitlist Functionality  
+- [ ] `WaitlistController` with join/leave/view methods
+- [ ] Conditional UI on event details (Join Waitlist button)
+- [ ] Attendee "My Waitlists" page
+- [ ] Organiser waitlist view for their events
+- [ ] Proper authorization (WaitlistPolicy)
+
+### Phase 3: Mandatory Excellence - Email Notifications
+- [ ] Create `BookingCancelled` event
+- [ ] Create `NotifyWaitlistedUsers` listener  
+- [ ] Create `WaitlistSpotAvailable` mailable
+- [ ] Configure event-listener binding
+- [ ] Test with Mail::fake()
+
+### Phase 4: Student-Designed Excellence Marker
+- [ ] Choose and implement custom excellence feature
+- [ ] Document justification against excellence criteria
+- [ ] Add relevant tests for custom feature
+
+### Phase 5: Testing & Validation
+- [ ] Implement all required waitlist tests
+- [ ] Test email notifications with Mail::fake()
+- [ ] Verify business logic (can't join if booked, etc.)
+- [ ] Test UI conditional logic
+
+### Phase 6: Documentation
+- [ ] Update ERD with waitlist tables
+- [ ] Document waitlist database design choices
+- [ ] Explain student-designed excellence marker
+- [ ] Document email notification system
+
+## Common Pitfalls to Avoid
+- Don't use simple validation rules for capacity check (must be manual)
+- Don't forget to seed sufficient test data for pagination demo
+- Don't allow users to edit events they didn't create
+- Don't show action buttons to wrong user types
+- Don't forget server-side validation for privacy policy checkbox
+- Don't submit code you can't explain thoroughly
